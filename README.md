@@ -5,8 +5,8 @@ source folder and use:
 
     pip install --user .
 
-This will install the `simra2vtk` executable to `~/.local/bin`. Make
-sure that this folder is in your path.
+This will install the `simra2vtk` and `simra2openfoam` executables to
+`~/.local/bin`. Make sure that this folder is in your path.
 
 Note that some distributions may use *pip3* as the name for the *pip*
 executable tied to Python 3. In that case:
