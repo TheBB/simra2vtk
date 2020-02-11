@@ -71,7 +71,7 @@ def foam_labels(filename, faces, key, note):
         f.write(')\n')
 
 
-def foam_boundary(filename, nint, faces):
+def foam_boundaries(filename, nint, faces):
     with open(filename, 'w') as f:
         f.write(foam_header('polyBoundaryMesh', 'boundary'))
         f.write('1\n')
@@ -82,6 +82,25 @@ def foam_boundary(filename, nint, faces):
         f.write('    startFace {};\n'.format(nint))
         f.write('}\n')
         f.write(')\n')
+
+
+def foam_internalfield(filename, fieldname, data):
+    data = data.reshape((len(data), -1))
+    vectorp = data.shape[-1] != 1
+    with open(filename, 'w') as f:
+        if vectorp:
+            f.write('internalField nonuniform List<vector>\n')
+        else:
+            f.write('internalField nonuniform List<scalar>\n')
+        f.write(str(len(data)) + '\n')
+        f.write('(\n')
+        for entry in tqdm(data, 'Writing field ' + fieldname):
+            if vectorp:
+                f.write('  (' + ' '.join(str(e) for e in entry) + ')\n')
+            else:
+                f.write('  ' + str(entry[0]) + '\n')
+        f.write(');\n')
+
 
 
 def convert_grid(meshfile, resfile, outdir):
@@ -124,6 +143,25 @@ def convert_grid(meshfile, resfile, outdir):
     foam_labels(os.path.join(outdir, 'owner'), faces, 'owner', note=note)
     foam_labels(os.path.join(outdir, 'neighbour'), faces, 'neighbour', note=note)
     foam_boundaries(os.path.join(outdir, 'boundary'), len(int_faces), bnd_faces)
+
+    with FortranFile(resfile, 'r') as f:
+        data = f.read_reals(dtype='f4')
+        time, data = data[0], data[1:].reshape(-1, 11)
+        assert data.shape[0] == npts
+
+    timedir = os.path.join(outdir, str(time))
+    if not os.path.exists(timedir):
+        os.makedirs(timedir)
+
+    foam_internalfield(os.path.join(timedir, 'u'), 'u', data[:,:3])
+    foam_internalfield(os.path.join(timedir, 'ps'), 'ps', data[:,3])
+    foam_internalfield(os.path.join(timedir, 'tk'), 'tk', data[:,4])
+    foam_internalfield(os.path.join(timedir, 'td1'), 'td1', data[:,5])
+    foam_internalfield(os.path.join(timedir, 'vtef'), 'vtef', data[:,6])
+    foam_internalfield(os.path.join(timedir, 'pt'), 'pt', data[:,7])
+    foam_internalfield(os.path.join(timedir, 'pts1'), 'pts1', data[:,8])
+    foam_internalfield(os.path.join(timedir, 'rho'), 'rho', data[:,9])
+    foam_internalfield(os.path.join(timedir, 'rhos'), 'rhos', data[:,10])
 
 
 @click.command()
