@@ -31,16 +31,20 @@ def add_array(pointdata, data, name):
     pointdata.AddArray(array)
 
 
-def convert(meshfile, resfile):
-    with FortranFile(meshfile, 'r') as f:
-        npts, nelems, imax, jmax, kmax, _ = f.read_ints()
-        coords = f.read_reals(dtype='f4').reshape(npts, 3)
-        elems = f.read_ints().reshape(nelems, 8) - 1
+def convert(meshfile, resfile, endian):
+    headertype = endian + 'u4'
+    floattype = endian + 'f4'
+    inttype = endian + 'u4'
+
+    with FortranFile(meshfile, 'r', header_dtype=headertype) as f:
+        npts, nelems, imax, jmax, kmax, _ = f.read_ints(inttype)
+        coords = f.read_reals(dtype=floattype).reshape(npts, 3)
+        elems = f.read_ints(inttype).reshape(nelems, 8) - 1
 
     grid = convert_grid(coords, elems)
 
-    with FortranFile(resfile, 'r') as f:
-        data = f.read_reals(dtype='f4')
+    with FortranFile(resfile, 'r', header_dtype=headertype) as f:
+        data = f.read_reals(dtype=floattype)
         time, data = data[0], data[1:].reshape(-1, 11)
         assert data.shape[0] == npts
 
@@ -61,8 +65,9 @@ def convert(meshfile, resfile):
 @click.command()
 @click.option('--mesh', 'meshfile', default='mesh.dat')
 @click.option('--res', 'resfile', default='cont.res')
+@click.option('--endian', type=click.Choice(['native', 'big', 'little']), default='native')
 @click.option('--out', 'outfile')
-def main(meshfile, resfile, outfile):
+def main(meshfile, resfile, outfile, endian):
     if not os.path.exists(meshfile):
         print("Can't find {} --- please specify mesh file with --mesh FILENAME".format(meshfile), file=sys.stderr)
         sys.exit(1)
@@ -70,7 +75,8 @@ def main(meshfile, resfile, outfile):
         print("Can't find {} --- please specify result file with --res FILENAME".format(resfile), file=sys.stderr)
         sys.exit(1)
 
-    grid = convert(meshfile, resfile)
+    endian = {'native': '=', 'big': '>', 'small': '<'}[endian]
+    grid = convert(meshfile, resfile, endian)
 
     if outfile is None:
         name, _ = os.path.splitext(resfile)
