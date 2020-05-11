@@ -5,6 +5,7 @@ from tqdm import tqdm
 import vtk
 from vtk.util.numpy_support import numpy_to_vtk
 from scipy.io import FortranFile
+import numpy as np
 
 
 def vtk_id_list(data):
