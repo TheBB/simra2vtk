@@ -10,7 +10,7 @@ setup(
     author_email='eivind.fonn@sintef.no',
     license='GPL3',
     url='https://github.com/TheBB/simra2vtk',
-    py_modules=['simra_to_vtk', 'simra_to_openfoam'],
+    packages=['simra_to_vtk', 'simra_to_openfoam'],
     entry_points={
         'console_scripts': [
             'simra2vtk=simra_to_vtk.__main__:main',
