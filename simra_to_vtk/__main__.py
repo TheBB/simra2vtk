@@ -15,6 +15,8 @@ def vtk_id_list(data):
 
 
 def convert_grid(coords, elems):
+    coords = np.array(coords, dtype=np.float32)
+    elems = np.array(elems, dtype=np.int32)
     points = vtk.vtkPoints()
     for pt in tqdm(coords, 'Copying points'):
         points.InsertNextPoint(pt[0], pt[1], pt[2])
@@ -26,7 +28,7 @@ def convert_grid(coords, elems):
 
 
 def add_array(pointdata, data, name):
-    array = numpy_to_vtk(data, deep=1)
+    array = numpy_to_vtk(np.array(data, dtype=np.float32), deep=1)
     array.SetName(name)
     pointdata.AddArray(array)
 
