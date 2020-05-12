@@ -103,11 +103,15 @@ def foam_internalfield(filename, fieldname, data):
 
 
 
-def convert_grid(meshfile, resfile, outdir):
-    with FortranFile(meshfile, 'r') as f:
-        npts, nelems, imax, jmax, kmax, _ = f.read_ints()
-        coords = f.read_reals(dtype='f4').reshape(npts, 3)
-        elems = f.read_ints().reshape(-1, 8) - 1
+def convert_grid(meshfile, resfile, outdir, endian):
+    headertype = endian + 'u4'
+    floattype = endian + 'f4'
+    inttype = endian + 'u4'
+
+    with FortranFile(meshfile, 'r', header_dtype=headertype) as f:
+        npts, nelems, imax, jmax, kmax, _ = f.read_ints(inttype)
+        coords = f.read_reals(dtype=floattype).reshape(npts, 3)
+        elems = f.read_ints(inttype).reshape(-1, 8) - 1
 
     # Compute owner and neighbour IDs for each face
     faces = defaultdict(Face)
@@ -144,8 +148,8 @@ def convert_grid(meshfile, resfile, outdir):
     foam_labels(os.path.join(outdir, 'neighbour'), faces, 'neighbour', note=note)
     foam_boundaries(os.path.join(outdir, 'boundary'), len(int_faces), bnd_faces)
 
-    with FortranFile(resfile, 'r') as f:
-        data = f.read_reals(dtype='f4')
+    with FortranFile(resfile, 'r', header_dtype=headertype) as f:
+        data = f.read_reals(dtype=floattype)
         time, data = data[0], data[1:].reshape(-1, 11)
         assert data.shape[0] == npts
 
@@ -167,8 +171,9 @@ def convert_grid(meshfile, resfile, outdir):
 @click.command()
 @click.option('--mesh', 'meshfile', default='mesh.dat')
 @click.option('--res', 'resfile', default='cont.res')
+@click.option('--endian', type=click.Choice(['native', 'big', 'little']), default='native')
 @click.option('--out', 'outfile')
-def main(meshfile, resfile, outfile):
+def main(meshfile, resfile, outfile, endian):
     if not os.path.exists(meshfile):
         print("Can't find {} --- please specify mesh file with --mesh FILENAME".format(meshfile), file=sys.stderr)
         sys.exit(1)
@@ -185,4 +190,5 @@ def main(meshfile, resfile, outfile):
     elif not os.path.exists(outfile):
         os.makedirs(outfile)
 
-    convert_grid(meshfile, resfile, outfile)
+    endian = {'native': '=', 'big': '>', 'small': '<'}[endian]
+    convert_grid(meshfile, resfile, outfile, endian)
