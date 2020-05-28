@@ -1,5 +1,6 @@
 import click
 from collections import defaultdict
+from itertools import takewhile
 import numpy as np
 from operator import attrgetter
 import os
@@ -15,6 +16,7 @@ class Face:
         self.owner = None
         self.neighbour = None
         self.points = None
+        self.boundary = None
 
 
 # Outward-pointing numbering
@@ -26,6 +28,7 @@ FACES = [
     np.array([0, 4, 7, 3]),
     np.array([1, 2, 6, 5]),
 ]
+BOUNDARIES = ['kmin', 'kmax', 'jmin', 'jmax', 'imin', 'imax']
 
 
 def foam_header(cls, obj, note='None'):
@@ -74,13 +77,19 @@ def foam_labels(filename, faces, key, note):
 def foam_boundaries(filename, nint, faces):
     with open(filename, 'w') as f:
         f.write(foam_header('polyBoundaryMesh', 'boundary'))
-        f.write('1\n')
+        f.write('{}\n'.format(len(BOUNDARIES)))
         f.write('(\n')
-        f.write('boundary{\n')
-        f.write('    type patch;\n')
-        f.write('    nFaces {};\n'.format(len(faces)))
-        f.write('    startFace {};\n'.format(nint))
-        f.write('}\n')
+        while faces:
+            boundaryname = faces[0].boundary
+            nfaces = sum(1 for _ in takewhile(lambda f: f.boundary == boundaryname, faces))
+            faces = faces[nfaces:]
+            f.write('{}'.format(boundaryname))
+            f.write('{\n')
+            f.write('    type patch;\n')
+            f.write('    nFaces {};\n'.format(nfaces))
+            f.write('    startFace {};\n'.format(nint))
+            f.write('}\n')
+            nint += nfaces
         f.write(')\n')
 
 
@@ -102,7 +111,6 @@ def foam_internalfield(filename, fieldname, data):
         f.write(');\n')
 
 
-
 def convert_grid(meshfile, resfile, outdir, endian):
     headertype = endian + 'u4'
     floattype = endian + 'f4'
@@ -116,24 +124,28 @@ def convert_grid(meshfile, resfile, outdir, endian):
     # Compute owner and neighbour IDs for each face
     faces = defaultdict(Face)
     for elemidx, elem in enumerate(tqdm(elems, 'Mapping faces')):
-        for faceidx in FACES:
+        for faceidx, boundaryname in zip(FACES, BOUNDARIES):
             face_pts = elem[faceidx]
             key = tuple(sorted(face_pts))
             face = faces[key]
+            face.boundary = boundaryname
             if face.owner is None:
                 face.owner = elemidx
                 face.points = face_pts
             else:
                 assert face.neighbour is None
                 face.neighbour = elemidx
+                face.boundary = None
 
     # Sort faces by owner, neighbour
     faces = list(faces.values())
-    bnd_faces = [face for face in faces if face.neighbour is None]
+    bnd_faces = []
+    for boundaryname in BOUNDARIES:
+        temp = [face for face in faces if face.boundary == boundaryname]
+        bnd_faces.extend(sorted(temp, key=attrgetter('owner')))
     int_faces = [face for face in faces if face.neighbour is not None]
     int_faces = sorted(int_faces, key=attrgetter('neighbour'))
     int_faces = sorted(int_faces, key=attrgetter('owner'))
-    bnd_faces = sorted(bnd_faces, key=attrgetter('owner'))
     for face in bnd_faces:
         face.neighbour = -1
     faces = int_faces + bnd_faces
