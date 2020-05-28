@@ -43,6 +43,18 @@ def foam_header(cls, obj, note='None'):
 """.format(cls, note, obj)
 
 
+def internalfield_header(cls, obj, loc=0.0):
+    return """FoamFile
+{{
+    version      2.0;
+    format       ascii;
+    class        {};
+    location     "{}";
+    object       p;
+}}
+""".format(cls, loc, obj)
+
+
 def foam_points(filename, points):
     with open(filename, 'w') as f:
         f.write(foam_header('vectorField', 'points'))
@@ -97,6 +109,8 @@ def foam_internalfield(filename, fieldname, data):
     data = data.reshape((len(data), -1))
     vectorp = data.shape[-1] != 1
     with open(filename, 'w') as f:
+        f.write(internalfield_header(('volVectorField' if vectorp else 'volScalarField'), fieldname))
+        f.write('dimensions [0 2 -2 0 0 0 0];\n')
         if vectorp:
             f.write('internalField nonuniform List<vector>\n')
         else:
