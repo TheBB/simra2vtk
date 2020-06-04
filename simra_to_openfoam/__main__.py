@@ -142,9 +142,9 @@ def foam_internalfield(filename, fieldname, data):
         if fieldname in ('u', 'tk', 'td', 'ps'):
             f.write('boundaryField\n{\n')
             if fieldname in ('u', 'tk', 'td'):
-                f.write('  imin\n  {\n    type fixedValue;\n    value $internalfield;\n  }\n')
+                f.write('  imin\n  {\n    type fixedValue;\n    value $internalField;\n  }\n')
             elif fieldname in ('ps',):
-                f.write('  imax\n  {\n    type fixedValue;\n    value $internalfield;\n  }\n')
+                f.write('  imax\n  {\n    type fixedValue;\n    value $internalField;\n  }\n')
             f.write('}\n')
 
 
