@@ -139,6 +139,14 @@ def foam_internalfield(filename, fieldname, data):
                 f.write('  ' + str(entry[0]) + '\n')
         f.write(');\n')
 
+        if fieldname in ('u', 'tk', 'td', 'ps'):
+            f.write('boundaryField\n{\n')
+            if fieldname in ('u', 'tk', 'td'):
+                f.write('  imin\n  {\n    type fixedValue;\n    value $internalfield;\n  }\n')
+            elif fieldname in ('ps',):
+                f.write('  imax\n  {\n    type fixedValue;\n    value $internalfield;\n  }\n')
+            f.write('}\n')
+
 
 def convert_grid(meshfile, resfile, outdir, endian):
     headertype = endian + 'u4'
