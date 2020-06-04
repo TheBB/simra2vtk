@@ -30,6 +30,18 @@ FACES = [
 ]
 BOUNDARIES = ['kmin', 'kmax', 'jmin', 'jmax', 'imin', 'imax']
 
+# Known physical dimensions of fields
+# kg, m, s, K, mol, A, cd
+DIMENSIONS = {
+    'u': [0, 1, -1, 0, 0, 0, 0],
+    'ps': [1, -1, -2, 0, 0, 0, 0],
+    'rho': [1, -3, 0, 0, 0, 0, 0],
+    'tk': [0, 2, -2, 0, 0, 0, 0],
+    'td': [0, 2, -3, 0, 0, 0, 0],
+    'pt': [0, 0, 0, 1, 0, 0, 0],
+    'pts': [0, 0, 0, 1, 0, 0, 0],
+}
+
 
 def foam_header(cls, obj, note='None'):
     return """FoamFile
@@ -110,7 +122,10 @@ def foam_internalfield(filename, fieldname, data):
     vectorp = data.shape[-1] != 1
     with open(filename, 'w') as f:
         f.write(internalfield_header(('volVectorField' if vectorp else 'volScalarField'), fieldname))
-        f.write('dimensions [0 2 -2 0 0 0 0];\n')
+        if fieldname in DIMENSIONS:
+            f.write('dimensions [')
+            f.write(' '.join(map(str, DIMENSIONS[fieldname])))
+            f.write('];\n')
         if vectorp:
             f.write('internalField nonuniform List<vector>\n')
         else:
