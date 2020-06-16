@@ -117,7 +117,7 @@ def foam_boundaries(filename, nint, faces):
         f.write(')\n')
 
 
-def foam_internalfield(filename, fieldname, data):
+def foam_internalfield(filename, fieldname, data, boundaries=(), faces=()):
     data = data.reshape((len(data), -1))
     vectorp = data.shape[-1] != 1
     with open(filename, 'w') as f:
@@ -139,13 +139,27 @@ def foam_internalfield(filename, fieldname, data):
                 f.write('  ' + str(entry[0]) + '\n')
         f.write(');\n')
 
-        if fieldname in ('u', 'tk', 'td', 'ps'):
-            f.write('boundaryField\n{\n')
-            if fieldname in ('u', 'tk', 'td'):
-                f.write('  imin\n  {\n    type fixedValue;\n    value $internalField;\n  }\n')
-            elif fieldname in ('ps',):
-                f.write('  imax\n  {\n    type fixedValue;\n    value $internalField;\n  }\n')
-            f.write('}\n')
+        if not boundaries:
+            return
+
+        f.write('boundaryField\n{\n')
+        for boundary in boundaries:
+            f.write('  ' + boundary + '\n  {\n    type fixedValue;\n')
+            if vectorp:
+                f.write('    value nonuniform List<vector>;\n')
+            else:
+                f.write('    value nonuniform List<scalar>;\n')
+            data = np.array([data[face.points, :] for face in faces if face.boundary == boundary])
+            data = np.mean(data, axis=1)
+            f.write('    ' + str(len(data)) + '\n    (\n')
+            for entry in data:
+                if vectorp:
+                    f.write('      (' + ' '.join(str(e) for e in entry) + ')\n')
+                else:
+                    f.write('      ' + str(entry[0]) + '\n')
+            f.write('    )\n')
+            f.write('  }\n')
+        f.write('}\n')
 
 
 def convert_grid(meshfile, resfile, outdir, endian):
@@ -191,25 +205,27 @@ def convert_grid(meshfile, resfile, outdir, endian):
         len(coords), len(elems), len(faces), len(int_faces)
     )
 
-    foam_points(os.path.join(outdir, 'points'), coords)
-    foam_faces(os.path.join(outdir, 'faces'), faces)
-    foam_labels(os.path.join(outdir, 'owner'), faces, 'owner', note=note)
-    foam_labels(os.path.join(outdir, 'neighbour'), faces, 'neighbour', note=note)
-    foam_boundaries(os.path.join(outdir, 'boundary'), len(int_faces), bnd_faces)
 
     with FortranFile(resfile, 'r', header_dtype=headertype) as f:
         data = f.read_reals(dtype=floattype)
         time, data = data[0], data[1:].reshape(-1, 11)
         assert data.shape[0] == npts
 
+
+    foam_points(os.path.join(outdir, 'points'), coords)
+    foam_faces(os.path.join(outdir, 'faces'), faces)
+    foam_labels(os.path.join(outdir, 'owner'), faces, 'owner', note=note)
+    foam_labels(os.path.join(outdir, 'neighbour'), faces, 'neighbour', note=note)
+    foam_boundaries(os.path.join(outdir, 'boundary'), len(int_faces), bnd_faces)
+
     timedir = os.path.join(outdir, str(time))
     if not os.path.exists(timedir):
         os.makedirs(timedir)
 
-    foam_internalfield(os.path.join(timedir, 'u'), 'u', data[:,:3])
-    foam_internalfield(os.path.join(timedir, 'ps'), 'ps', data[:,3])
-    foam_internalfield(os.path.join(timedir, 'tk'), 'tk', data[:,4])
-    foam_internalfield(os.path.join(timedir, 'td1'), 'td1', data[:,5])
+    foam_internalfield(os.path.join(timedir, 'u'), 'u', data[:,:3], boundaries=('imin',), faces=faces)
+    foam_internalfield(os.path.join(timedir, 'ps'), 'ps', data[:,3], boundaries=('imax',), faces=faces)
+    foam_internalfield(os.path.join(timedir, 'tk'), 'tk', data[:,4], boundaries=('imin',), faces=faces)
+    foam_internalfield(os.path.join(timedir, 'td1'), 'td1', data[:,5], boundaries=('imin',), faces=faces)
     foam_internalfield(os.path.join(timedir, 'vtef'), 'vtef', data[:,6])
     foam_internalfield(os.path.join(timedir, 'pt'), 'pt', data[:,7])
     foam_internalfield(os.path.join(timedir, 'pts1'), 'pts1', data[:,8])
