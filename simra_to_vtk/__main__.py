@@ -46,6 +46,9 @@ def convert(meshfile, resfile, endian):
 
     grid = convert_grid(coords, elems)
 
+    if resfile is None:
+        return grid
+
     with FortranFile(resfile, 'r', header_dtype=headertype) as f:
         data = f.read_reals(dtype=floattype)
         time, data = data[0], data[1:].reshape(-1, 11)
@@ -75,15 +78,17 @@ def main(meshfile, resfile, outfile, endian):
         print("Can't find {} --- please specify mesh file with --mesh FILENAME".format(meshfile), file=sys.stderr)
         sys.exit(1)
     if not os.path.exists(resfile):
-        print("Can't find {} --- please specify result file with --res FILENAME".format(resfile), file=sys.stderr)
-        sys.exit(1)
+        print("Can't find {} --- running in mesh-only mode".format(resfile), file=sys.stderr)
+        resfile = None
 
     endian = {'native': '=', 'big': '>', 'small': '<'}[endian]
     grid = convert(meshfile, resfile, endian)
 
-    if outfile is None:
+    if outfile is None and resfile is not None:
         name, _ = os.path.splitext(resfile)
         outfile = name + '.vtk'
+    elif outfile is None:
+        outfile = 'cont.vtk'
 
     print("Writing {}".format(outfile))
     writer = vtk.vtkUnstructuredGridWriter()

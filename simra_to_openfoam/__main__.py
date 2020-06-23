@@ -205,18 +205,19 @@ def convert_grid(meshfile, resfile, outdir, endian):
         len(coords), len(elems), len(faces), len(int_faces)
     )
 
-
-    with FortranFile(resfile, 'r', header_dtype=headertype) as f:
-        data = f.read_reals(dtype=floattype)
-        time, data = data[0], data[1:].reshape(-1, 11)
-        assert data.shape[0] == npts
-
-
     foam_points(os.path.join(outdir, 'points'), coords)
     foam_faces(os.path.join(outdir, 'faces'), faces)
     foam_labels(os.path.join(outdir, 'owner'), faces, 'owner', note=note)
     foam_labels(os.path.join(outdir, 'neighbour'), faces, 'neighbour', note=note)
     foam_boundaries(os.path.join(outdir, 'boundary'), len(int_faces), bnd_faces)
+
+    if resfile is None:
+        return
+
+    with FortranFile(resfile, 'r', header_dtype=headertype) as f:
+        data = f.read_reals(dtype=floattype)
+        time, data = data[0], data[1:].reshape(-1, 11)
+        assert data.shape[0] == npts
 
     timedir = os.path.join(outdir, str(time))
     if not os.path.exists(timedir):
@@ -243,11 +244,13 @@ def main(meshfile, resfile, outfile, endian):
         print("Can't find {} --- please specify mesh file with --mesh FILENAME".format(meshfile), file=sys.stderr)
         sys.exit(1)
     if not os.path.exists(resfile):
-        print("Can't find {} --- please specify result file with --res FILENAME".format(resfile), file=sys.stderr)
-        sys.exit(1)
+        print("Can't find {} --- running in mesh-only mode".format(resfile), file=sys.stderr)
+        resfile = None
 
-    if outfile is None:
+    if outfile is None and resfile is not None:
         outfile, _ = os.path.splitext(resfile)
+    elif outfile is None:
+        outfile = 'cont'
 
     if os.path.exists(outfile) and not os.path.isdir(outfile):
         print("Output location {} already exists, and is not a directory".format(outfile), file=sys.stderr)
