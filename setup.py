@@ -15,7 +15,8 @@ setup(
         'console_scripts': [
             'simra2vtk=simra_to_vtk.__main__:main',
             'simra2openfoam=simra_to_openfoam.__main__:main',
+            'simra2netcdf=simra_to_netcdf.__main__:main',
         ],
     },
-    install_requires=['click', 'scipy', 'tqdm', 'vtk'],
+    install_requires=['click', 'scipy', 'tqdm', 'vtk', 'netcdf4'],
 )
