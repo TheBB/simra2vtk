@@ -149,10 +149,9 @@ def foam_internalfield(filename, fieldname, data, boundaries=(), faces=()):
                 f.write('    value nonuniform List<vector>;\n')
             else:
                 f.write('    value nonuniform List<scalar>;\n')
-            data = np.array([data[face.points, :] for face in faces if face.boundary == boundary])
-            data = np.mean(data, axis=1)
-            f.write('    ' + str(len(data)) + '\n    (\n')
-            for entry in data:
+            bnd_data = np.array([data[face.owner] for face in faces if face.boundary == boundary])
+            f.write('    ' + str(len(bnd_data)) + '\n    (\n')
+            for entry in bnd_data:
                 if vectorp:
                     f.write('      (' + ' '.join(str(e) for e in entry) + ')\n')
                 else:
@@ -160,6 +159,13 @@ def foam_internalfield(filename, fieldname, data, boundaries=(), faces=()):
             f.write('    )\n')
             f.write('  }\n')
         f.write('}\n')
+
+
+def cellify(data, elems):
+    retval = np.zeros((elems.shape[0], data.shape[1]))
+    for i, elem in tqdm(enumerate(elems), 'Cellifying', total=len(elems)):
+        retval[i] = np.mean(data[elem,:], axis=0)
+    return retval
 
 
 def convert_grid(meshfile, resfile, outdir, endian):
@@ -218,6 +224,7 @@ def convert_grid(meshfile, resfile, outdir, endian):
         data = f.read_reals(dtype=floattype)
         time, data = data[0], data[1:].reshape(-1, 11)
         assert data.shape[0] == npts
+    data = cellify(data, elems)
 
     timedir = os.path.join(outdir, str(time))
     if not os.path.exists(timedir):
