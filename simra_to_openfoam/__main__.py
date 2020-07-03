@@ -28,7 +28,7 @@ FACES = [
     np.array([0, 4, 7, 3]),
     np.array([1, 2, 6, 5]),
 ]
-BOUNDARIES = ['kmin', 'kmax', 'jmin', 'jmax', 'imin', 'imax']
+BOUNDARIES = ['ground', 'ceiling', 'wall', 'wall', 'wall', 'wall']
 
 # Known physical dimensions of fields
 # kg, m, s, K, mol, A, cd
@@ -98,10 +98,10 @@ def foam_labels(filename, faces, key, note):
         f.write(')\n')
 
 
-def foam_boundaries(filename, nint, faces):
+def foam_boundaries(filename, nint, faces, boundary_names):
     with open(filename, 'w') as f:
         f.write(foam_header('polyBoundaryMesh', 'boundary'))
-        f.write('{}\n'.format(len(BOUNDARIES)))
+        f.write('{}\n'.format(len(boundary_names)))
         f.write('(\n')
         while faces:
             boundaryname = faces[0].boundary
@@ -178,10 +178,40 @@ def convert_grid(meshfile, resfile, outdir, endian):
         coords = f.read_reals(dtype=floattype).reshape(npts, 3)
         elems = f.read_ints(inttype).reshape(-1, 8) - 1
 
+    with FortranFile(resfile, 'r', header_dtype=headertype) as f:
+        data = f.read_reals(dtype=floattype)
+        time, data = data[0], data[1:].reshape(-1, 11)
+        assert data.shape[0] == npts
+
+    # Automatic boundary detection based on mean velocity
+    tol = 1e-2
+    boundary_names = BOUNDARIES.copy()
+    mean_velocity = np.mean(data[:,:2], axis=0)
+    mean_velocity /= np.linalg.norm(mean_velocity)
+    if np.dot(mean_velocity, [-1, 0]) < -tol:
+        print('Detected west-to-east flow')
+        boundary_names[4] = 'inflow'
+        boundary_names[5] = 'outflow'
+    elif np.dot(mean_velocity, [1, 0]) < -tol:
+        print('Detected east-to-west flow')
+        boundary_names[5] = 'inflow'
+        boundary_names[4] = 'outflow'
+    if np.dot(mean_velocity, [0, -1]) < -tol:
+        print('Detected south-to-north flow')
+        boundary_names[2] = 'inflow'
+        boundary_names[3] = 'outflow'
+    elif np.dot(mean_velocity, [0, 1]) < -tol:
+        print('Detected north-to-south flow')
+        boundary_names[3] = 'inflow'
+        boundary_names[2] = 'outflow'
+
+    # Compute data on cells by averaging
+    data = cellify(data, elems)
+
     # Compute owner and neighbour IDs for each face
     faces = defaultdict(Face)
     for elemidx, elem in enumerate(tqdm(elems, 'Mapping faces')):
-        for faceidx, boundaryname in zip(FACES, BOUNDARIES):
+        for faceidx, boundaryname in zip(FACES, boundary_names):
             face_pts = elem[faceidx]
             key = tuple(sorted(face_pts))
             face = faces[key]
@@ -196,8 +226,11 @@ def convert_grid(meshfile, resfile, outdir, endian):
 
     # Sort faces by owner, neighbour
     faces = list(faces.values())
-    bnd_faces = []
-    for boundaryname in BOUNDARIES:
+    bnd_faces, found = [], set()
+    for boundaryname in boundary_names:
+        if boundaryname in found:
+            continue
+        found.add(boundaryname)
         temp = [face for face in faces if face.boundary == boundaryname]
         bnd_faces.extend(sorted(temp, key=attrgetter('owner')))
     int_faces = [face for face in faces if face.neighbour is not None]
@@ -215,25 +248,16 @@ def convert_grid(meshfile, resfile, outdir, endian):
     foam_faces(os.path.join(outdir, 'faces'), faces)
     foam_labels(os.path.join(outdir, 'owner'), faces, 'owner', note=note)
     foam_labels(os.path.join(outdir, 'neighbour'), faces, 'neighbour', note=note)
-    foam_boundaries(os.path.join(outdir, 'boundary'), len(int_faces), bnd_faces)
-
-    if resfile is None:
-        return
-
-    with FortranFile(resfile, 'r', header_dtype=headertype) as f:
-        data = f.read_reals(dtype=floattype)
-        time, data = data[0], data[1:].reshape(-1, 11)
-        assert data.shape[0] == npts
-    data = cellify(data, elems)
+    foam_boundaries(os.path.join(outdir, 'boundary'), len(int_faces), bnd_faces, boundary_names)
 
     timedir = os.path.join(outdir, str(time))
     if not os.path.exists(timedir):
         os.makedirs(timedir)
 
-    foam_internalfield(os.path.join(timedir, 'u'), 'u', data[:,:3], boundaries=('imin',), faces=faces)
-    foam_internalfield(os.path.join(timedir, 'ps'), 'ps', data[:,3], boundaries=('imax',), faces=faces)
-    foam_internalfield(os.path.join(timedir, 'tk'), 'tk', data[:,4], boundaries=('imin',), faces=faces)
-    foam_internalfield(os.path.join(timedir, 'td1'), 'td1', data[:,5], boundaries=('imin',), faces=faces)
+    foam_internalfield(os.path.join(timedir, 'u'), 'u', data[:,:3], boundaries=('inflow',), faces=faces)
+    foam_internalfield(os.path.join(timedir, 'ps'), 'ps', data[:,3], boundaries=('outflow',), faces=faces)
+    foam_internalfield(os.path.join(timedir, 'tk'), 'tk', data[:,4], boundaries=('inflow',), faces=faces)
+    foam_internalfield(os.path.join(timedir, 'td1'), 'td1', data[:,5], boundaries=('inflow',), faces=faces)
     foam_internalfield(os.path.join(timedir, 'vtef'), 'vtef', data[:,6])
     foam_internalfield(os.path.join(timedir, 'pt'), 'pt', data[:,7])
     foam_internalfield(os.path.join(timedir, 'pts1'), 'pts1', data[:,8])
@@ -251,8 +275,8 @@ def main(meshfile, resfile, outfile, endian):
         print("Can't find {} --- please specify mesh file with --mesh FILENAME".format(meshfile), file=sys.stderr)
         sys.exit(1)
     if not os.path.exists(resfile):
-        print("Can't find {} --- running in mesh-only mode".format(resfile), file=sys.stderr)
-        resfile = None
+        print("Can't find {} --- please specify result file with --res FILENAME".format(resfile), file=sys.stderr)
+        sys.exit(1)
 
     if outfile is None and resfile is not None:
         outfile, _ = os.path.splitext(resfile)
