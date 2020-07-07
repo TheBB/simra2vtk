@@ -6,7 +6,7 @@ import numpy as np
 import vtk
 from vtk.util.numpy_support import numpy_to_vtk
 
-from . import Simra
+from . import Simra, reader_args
 
 
 def vtk_id_list(data):
@@ -44,11 +44,7 @@ def convert(simra):
 
 
 @click.command()
-@click.option('--mesh', 'meshfile', default='mesh.dat')
-@click.option('--res', 'resfile', default='cont.res')
-@click.option('--endian', type=click.Choice(['native', 'big', 'little']), default='native')
-@click.option('--floatwidth', default=4)
-@click.option('--intwidth', default=4)
+@reader_args
 @click.option('--out', 'outfile')
 def main(outfile, **kwargs):
     simra = Simra(**kwargs)

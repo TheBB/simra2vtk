@@ -9,7 +9,7 @@ import sys
 from tqdm import tqdm
 from scipy.io import FortranFile
 
-from simrato import Simra
+from simrato import Simra, reader_args
 
 
 class Face:
@@ -254,11 +254,7 @@ def convert_grid(simra, outdir):
 
 
 @click.command()
-@click.option('--mesh', 'meshfile', default='mesh.dat')
-@click.option('--res', 'resfile', default='cont.res')
-@click.option('--endian', type=click.Choice(['native', 'big', 'little']), default='native')
-@click.option('--floatwidth', default=4)
-@click.option('--intwidth', default=4)
+@reader_args
 @click.option('--out', 'outfile')
 def main(outfile, **kwargs):
     simra = Simra(**kwargs, require_data=True)

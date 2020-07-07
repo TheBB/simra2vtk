@@ -1,6 +1,20 @@
+import click
 from scipy.io import FortranFile
 from os.path import exists
 import sys
+
+
+def reader_args(func):
+    args = [
+        click.option('--intwidth', default=4),
+        click.option('--floatwidth', default=4),
+        click.option('--endian', type=click.Choice(['native', 'big', 'little']), default='native'),
+        click.option('--res', 'resfile', default='cont.res'),
+        click.option('--mesh', 'meshfile', default='mesh.dat'),
+    ]
+    for arg in args:
+        func = arg(func)
+    return func
 
 
 class Simra:
