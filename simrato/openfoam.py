@@ -9,6 +9,8 @@ import sys
 from tqdm import tqdm
 from scipy.io import FortranFile
 
+from simrato import Simra
+
 
 class Face:
 
@@ -168,25 +170,11 @@ def cellify(data, elems):
     return retval
 
 
-def convert_grid(meshfile, resfile, outdir, endian):
-    headertype = endian + 'u4'
-    floattype = endian + 'f4'
-    inttype = endian + 'u4'
-
-    with FortranFile(meshfile, 'r', header_dtype=headertype) as f:
-        npts, nelems, imax, jmax, kmax, _ = f.read_ints(inttype)
-        coords = f.read_reals(dtype=floattype).reshape(npts, 3)
-        elems = f.read_ints(inttype).reshape(-1, 8) - 1
-
-    with FortranFile(resfile, 'r', header_dtype=headertype) as f:
-        data = f.read_reals(dtype=floattype)
-        time, data = data[0], data[1:].reshape(-1, 11)
-        assert data.shape[0] == npts
-
+def convert_grid(simra, outdir):
     # Automatic boundary detection based on mean velocity
     tol = 1e-2
     boundary_names = BOUNDARIES.copy()
-    mean_velocity = np.mean(data[:,:2], axis=0)
+    mean_velocity = np.mean(simra['u'][:,:2], axis=0)
     mean_velocity /= np.linalg.norm(mean_velocity)
     if np.dot(mean_velocity, [-1, 0]) < -tol:
         print('Detected west-to-east flow')
@@ -206,11 +194,11 @@ def convert_grid(meshfile, resfile, outdir, endian):
         boundary_names[2] = 'outflow'
 
     # Compute data on cells by averaging
-    data = cellify(data, elems)
+    data = cellify(simra.data, simra.elems)
 
     # Compute owner and neighbour IDs for each face
     faces = defaultdict(Face)
-    for elemidx, elem in enumerate(tqdm(elems, 'Mapping faces')):
+    for elemidx, elem in enumerate(tqdm(simra.elems, 'Mapping faces')):
         for faceidx, boundaryname in zip(FACES, boundary_names):
             face_pts = elem[faceidx]
             key = tuple(sorted(face_pts))
@@ -241,45 +229,42 @@ def convert_grid(meshfile, resfile, outdir, endian):
     faces = int_faces + bnd_faces
 
     note = 'nPoints: {} nCells: {} nFaces: {} nInternalFaces: {}'.format(
-        len(coords), len(elems), len(faces), len(int_faces)
+        simra.npts, simra.nelems, len(faces), len(int_faces)
     )
 
-    foam_points(os.path.join(outdir, 'points'), coords)
+    foam_points(os.path.join(outdir, 'points'), simra.coords)
     foam_faces(os.path.join(outdir, 'faces'), faces)
     foam_labels(os.path.join(outdir, 'owner'), faces, 'owner', note=note)
     foam_labels(os.path.join(outdir, 'neighbour'), faces, 'neighbour', note=note)
     foam_boundaries(os.path.join(outdir, 'boundary'), len(int_faces), bnd_faces, boundary_names)
 
-    timedir = os.path.join(outdir, str(time))
+    timedir = os.path.join(outdir, str(simra.time))
     if not os.path.exists(timedir):
         os.makedirs(timedir)
 
-    foam_internalfield(os.path.join(timedir, 'u'), 'u', data[:,:3], boundaries=('inflow',), faces=faces)
-    foam_internalfield(os.path.join(timedir, 'ps'), 'ps', data[:,3], boundaries=('outflow',), faces=faces)
-    foam_internalfield(os.path.join(timedir, 'tk'), 'tk', data[:,4], boundaries=('inflow',), faces=faces)
-    foam_internalfield(os.path.join(timedir, 'td1'), 'td1', data[:,5], boundaries=('inflow',), faces=faces)
-    foam_internalfield(os.path.join(timedir, 'vtef'), 'vtef', data[:,6])
-    foam_internalfield(os.path.join(timedir, 'pt'), 'pt', data[:,7])
-    foam_internalfield(os.path.join(timedir, 'pts1'), 'pts1', data[:,8])
-    foam_internalfield(os.path.join(timedir, 'rho'), 'rho', data[:,9])
-    foam_internalfield(os.path.join(timedir, 'rhos'), 'rhos', data[:,10])
+    foam_internalfield(os.path.join(timedir, 'u'), 'u', simra['u'], boundaries=('inflow',), faces=faces)
+    foam_internalfield(os.path.join(timedir, 'ps'), 'ps', simra['ps'], boundaries=('outflow',), faces=faces)
+    foam_internalfield(os.path.join(timedir, 'tk'), 'tk', simra['tk'], boundaries=('inflow',), faces=faces)
+    foam_internalfield(os.path.join(timedir, 'td1'), 'td1', simra['td'], boundaries=('inflow',), faces=faces)
+    foam_internalfield(os.path.join(timedir, 'vtef'), 'vtef', simra['vtef'])
+    foam_internalfield(os.path.join(timedir, 'pt'), 'pt', simra['pt'])
+    foam_internalfield(os.path.join(timedir, 'pts1'), 'pts1', simra['pts'])
+    foam_internalfield(os.path.join(timedir, 'rho'), 'rho', simra['rho'])
+    foam_internalfield(os.path.join(timedir, 'rhos'), 'rhos', simra['rhos'])
 
 
 @click.command()
 @click.option('--mesh', 'meshfile', default='mesh.dat')
 @click.option('--res', 'resfile', default='cont.res')
 @click.option('--endian', type=click.Choice(['native', 'big', 'little']), default='native')
+@click.option('--floatwidth', default=4)
+@click.option('--intwidth', default=4)
 @click.option('--out', 'outfile')
-def main(meshfile, resfile, outfile, endian):
-    if not os.path.exists(meshfile):
-        print("Can't find {} --- please specify mesh file with --mesh FILENAME".format(meshfile), file=sys.stderr)
-        sys.exit(1)
-    if not os.path.exists(resfile):
-        print("Can't find {} --- please specify result file with --res FILENAME".format(resfile), file=sys.stderr)
-        sys.exit(1)
+def main(outfile, **kwargs):
+    simra = Simra(**kwargs, require_data=True)
 
-    if outfile is None and resfile is not None:
-        outfile, _ = os.path.splitext(resfile)
+    if outfile is None and simra.resfile is not None:
+        outfile, _ = os.path.splitext(simra.resfile)
     elif outfile is None:
         outfile = 'cont'
 
@@ -289,5 +274,4 @@ def main(meshfile, resfile, outfile, endian):
     elif not os.path.exists(outfile):
         os.makedirs(outfile)
 
-    endian = {'native': '=', 'big': '>', 'small': '<'}[endian]
-    convert_grid(meshfile, resfile, outfile, endian)
+    convert_grid(simra, outfile)
