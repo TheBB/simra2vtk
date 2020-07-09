@@ -44,7 +44,7 @@ BOUNDARIES = ['ground', 'ceiling', 'wall', 'wall', 'wall', 'wall']
 # kg, m, s, K, mol, A, cd
 DIMENSIONS = {
     'u': [0, 1, -1, 0, 0, 0, 0],
-    'ps': [1, -1, -2, 0, 0, 0, 0],
+    'ps': [0, 2, -2, 0, 0, 0, 0],
     'rho': [1, -3, 0, 0, 0, 0, 0],
     'tk': [0, 2, -2, 0, 0, 0, 0],
     'td': [0, 2, -3, 0, 0, 0, 0],
