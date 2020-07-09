@@ -319,17 +319,17 @@ def convert_grid(simra, outdir):
     if not os.path.exists(timedir):
         os.makedirs(timedir)
 
-    foam_internalfield(timedir, 'u', simra['u'], boundaries=('inflow',), faces=faces)
-    foam_internalfield(timedir, 'ps', simra['ps'], boundaries=('outflow',), faces=faces)
-    foam_internalfield(timedir, 'tk', simra['tk'], boundaries=('inflow',), faces=faces)
-    foam_internalfield(timedir, 'td1', simra['td'], boundaries=('inflow',), faces=faces)
+    foam_internalfield(timedir, 'u', data[:,:3], boundaries=('inflow',), faces=faces)
+    foam_internalfield(timedir, 'ps', data[:,3], boundaries=('outflow',), faces=faces)
+    foam_internalfield(timedir, 'tk', data[:,4], boundaries=('inflow',), faces=faces)
+    foam_internalfield(timedir, 'td1', data[:,5], boundaries=('inflow',), faces=faces)
 
     # So far unused
-    foam_internalfield(timedir, 'vtef', simra['vtef'])
-    foam_internalfield(timedir, 'pt', simra['pt'])
-    foam_internalfield(timedir, 'pts1', simra['pts'])
-    foam_internalfield(timedir, 'rho', simra['rho'])
-    foam_internalfield(timedir, 'rhos', simra['rhos'])
+    foam_internalfield(timedir, 'vtef', data[:,6])
+    foam_internalfield(timedir, 'pt', data[:,7])
+    foam_internalfield(timedir, 'pts1', data[:,8])
+    foam_internalfield(timedir, 'rho', data[:,9])
+    foam_internalfield(timedir, 'rhos', data[:,10])
 
 
 @click.command()
