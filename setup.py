@@ -10,7 +10,7 @@ setup(
     author_email='eivind.fonn@sintef.no',
     license='GPL3',
     url='https://github.com/TheBB/simra2vtk',
-    packages=['simra_to_vtk', 'simra_to_openfoam', 'simrato'],
+    packages=['simrato', 'simra_to_netcdf'],
     entry_points={
         'console_scripts': [
             'simra2vtk=simrato.vtk:main',
@@ -18,5 +18,5 @@ setup(
             'simra2netcdf=simra_to_netcdf.__main__:main',
         ],
     },
-    install_requires=['click', 'scipy', 'tqdm', 'vtk', 'netcdf4'],
+    install_requires=['click', 'scipy', 'tqdm', 'vtk', 'netcdf4', 'utm'],
 )
