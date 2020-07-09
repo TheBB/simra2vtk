@@ -21,6 +21,7 @@ def reader_args(func):
         click.option('--intwidth', default=4),
         click.option('--floatwidth', default=4),
         click.option('--translate', type=(float, float), default=(0.0, 0.0)),
+        click.option('--auto-translate', flag_value=True),
         click.option('--utmconvert', nargs=2, type=str, default=None),
         click.option('--endian', type=click.Choice(['native', 'big', 'little']), default='native'),
         click.option('--res', 'resfile', default='cont.res'),
@@ -46,8 +47,8 @@ class Simra:
     }
 
     def __init__(self, meshfile='mesh.dat', resfile='cont.res', endian='native',
-                 floatwidth=4, intwidth=4, translate=(0, 0), utmconvert=None,
-                 require_data=False):
+                 floatwidth=4, intwidth=4, translate=(0, 0), auto_translate=False,
+                 utmconvert=None, require_data=False):
         self.meshfile = meshfile
         self.resfile = resfile
 
@@ -63,6 +64,12 @@ class Simra:
             self.npts, self.nelems, self.imax, self.jmax, self.kmax, _ = f.read_ints(dtype=inttype)
             self.coords = f.read_reals(dtype=floattype).reshape(self.npts, 3).astype('f8')
             self.elems = f.read_ints(dtype=inttype).reshape(self.nelems, 8) - 1
+
+        if auto_translate:
+            infofile = join(dirname(self.meshfile), 'info.txt')
+            with open(infofile, 'r') as f:
+                translate = tuple(map(float, next(f).split()))
+            print("Translating by ({}, {})".format(*translate))
         self.coords[:,0] += translate[0]
         self.coords[:,1] += translate[1]
 
