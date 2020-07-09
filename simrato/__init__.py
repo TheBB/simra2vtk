@@ -1,4 +1,4 @@
-from os.path import exists
+from os.path import exists, dirname, join
 import sys
 
 import click
@@ -84,11 +84,29 @@ class Simra:
             self.time, self.data = data[0], data[1:].reshape(-1, 11).astype('f8')
             assert self.data.shape[0] == self.npts
 
+        simrafile = join(dirname(self.meshfile), 'simra.in')
+        if exists(simrafile):
+            uref, href = 1.0, 1.0
+            with open(simrafile, 'r') as f:
+                for line in f:
+                    if line.startswith(' UREF'):
+                        uref = float(line.split('=')[-1][:-2])
+                    elif line.startswith(' LENREF'):
+                        href = float(line.split('=')[-1][:-2])
+        self['u'] = self['u'] * uref
+        self['tk'] = self['tk'] * uref**2
+        self['ps'] = self['ps'] * uref**2
+        self['td'] = self['td'] * uref**3 / href
+
+
     def __iter__(self):
         yield from self.keys()
 
     def __getitem__(self, key):
         return self.data[:, self.FIELDSLICES[key]]
+
+    def __setitem__(self, key, value):
+        self.data[:, self.FIELDSLICES[key]] = value
 
     def keys(self):
         yield from self.FIELDSLICES.keys()
