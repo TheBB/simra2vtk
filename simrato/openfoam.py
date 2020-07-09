@@ -152,7 +152,7 @@ def internalfield_header(cls, obj, loc=0.0):
     format       ascii;
     class        {};
     location     "{}";
-    object       p;
+    object       {};
 }}
 """.format(cls, loc, obj)
 
