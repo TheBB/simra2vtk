@@ -52,6 +52,13 @@ DIMENSIONS = {
     'pts': [0, 0, 0, 1, 0, 0, 0],
 }
 
+RENAME_FIELDS = {
+    'u': 'U',
+    'ps': 'p',
+    'tk': 'k',
+    'td': 'epsilon',
+}
+
 EXTRA_BOUNDARIES = {
     'u': """  outflow
   {
@@ -199,11 +206,13 @@ def foam_boundaries(filename, nint, faces, boundary_names):
         f.write(')\n')
 
 
-def foam_internalfield(filename, fieldname, data, boundaries=(), faces=()):
+def foam_internalfield(rootdir, fieldname, data, boundaries=(), faces=()):
+    renamed = RENAME_FIELDS.get(fieldname, fieldname)
+    filename = os.path.join(rootdir, renamed)
     data = data.reshape((len(data), -1))
     vectorp = data.shape[-1] != 1
     with open(filename, 'w') as f:
-        f.write(internalfield_header(('volVectorField' if vectorp else 'volScalarField'), fieldname))
+        f.write(internalfield_header(('volVectorField' if vectorp else 'volScalarField'), renamed))
         if fieldname in DIMENSIONS:
             f.write('dimensions [')
             f.write(' '.join(map(str, DIMENSIONS[fieldname])))
@@ -310,15 +319,17 @@ def convert_grid(simra, outdir):
     if not os.path.exists(timedir):
         os.makedirs(timedir)
 
-    foam_internalfield(os.path.join(timedir, 'u'), 'u', simra['u'], boundaries=('inflow',), faces=faces)
-    foam_internalfield(os.path.join(timedir, 'ps'), 'ps', simra['ps'], boundaries=('outflow',), faces=faces)
-    foam_internalfield(os.path.join(timedir, 'tk'), 'tk', simra['tk'], boundaries=('inflow',), faces=faces)
-    foam_internalfield(os.path.join(timedir, 'td1'), 'td1', simra['td'], boundaries=('inflow',), faces=faces)
-    foam_internalfield(os.path.join(timedir, 'vtef'), 'vtef', simra['vtef'])
-    foam_internalfield(os.path.join(timedir, 'pt'), 'pt', simra['pt'])
-    foam_internalfield(os.path.join(timedir, 'pts1'), 'pts1', simra['pts'])
-    foam_internalfield(os.path.join(timedir, 'rho'), 'rho', simra['rho'])
-    foam_internalfield(os.path.join(timedir, 'rhos'), 'rhos', simra['rhos'])
+    foam_internalfield(timedir, 'u', simra['u'], boundaries=('inflow',), faces=faces)
+    foam_internalfield(timedir, 'ps', simra['ps'], boundaries=('outflow',), faces=faces)
+    foam_internalfield(timedir, 'tk', simra['tk'], boundaries=('inflow',), faces=faces)
+    foam_internalfield(timedir, 'td1', simra['td'], boundaries=('inflow',), faces=faces)
+
+    # So far unused
+    foam_internalfield(timedir, 'vtef', simra['vtef'])
+    foam_internalfield(timedir, 'pt', simra['pt'])
+    foam_internalfield(timedir, 'pts1', simra['pts'])
+    foam_internalfield(timedir, 'rho', simra['rho'])
+    foam_internalfield(timedir, 'rhos', simra['rhos'])
 
 
 @click.command()
