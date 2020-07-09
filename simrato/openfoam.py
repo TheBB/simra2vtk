@@ -56,7 +56,7 @@ RENAME_FIELDS = {
     'u': 'U',
     'ps': 'p',
     'tk': 'k',
-    'td': 'epsilon',
+    'td1': 'epsilon',
 }
 
 EXTRA_BOUNDARIES = {
