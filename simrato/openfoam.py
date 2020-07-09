@@ -20,6 +20,14 @@ class Face:
         self.points = None
         self.boundary = None
 
+    def normal(self, coords):
+        a, b, c, d = coords[self.points, :]
+        norm1 = np.cross(b - a, c - a)
+        norm2 = np.cross(d - c, a - c)
+        norm = norm1/np.linalg.norm(norm1) + norm2/np.linalg.norm(norm2)
+        norm /= np.linalg.norm(norm)
+        return norm
+
 
 # Outward-pointing numbering
 FACES = [
@@ -105,8 +113,7 @@ def foam_boundaries(filename, nint, faces, boundary_names):
         f.write(foam_header('polyBoundaryMesh', 'boundary'))
         f.write('{}\n'.format(len(boundary_names)))
         f.write('(\n')
-        while faces:
-            boundaryname = faces[0].boundary
+        for boundaryname in boundary_names:
             nfaces = sum(1 for _ in takewhile(lambda f: f.boundary == boundaryname, faces))
             faces = faces[nfaces:]
             f.write('{}'.format(boundaryname))
@@ -171,35 +178,13 @@ def cellify(data, elems):
 
 
 def convert_grid(simra, outdir):
-    # Automatic boundary detection based on mean velocity
-    tol = 1e-2
-    boundary_names = BOUNDARIES.copy()
-    mean_velocity = np.mean(simra['u'][:,:2], axis=0)
-    mean_velocity /= np.linalg.norm(mean_velocity)
-    if np.dot(mean_velocity, [-1, 0]) < -tol:
-        print('Detected west-to-east flow')
-        boundary_names[4] = 'inflow'
-        boundary_names[5] = 'outflow'
-    elif np.dot(mean_velocity, [1, 0]) < -tol:
-        print('Detected east-to-west flow')
-        boundary_names[5] = 'inflow'
-        boundary_names[4] = 'outflow'
-    if np.dot(mean_velocity, [0, -1]) < -tol:
-        print('Detected south-to-north flow')
-        boundary_names[2] = 'inflow'
-        boundary_names[3] = 'outflow'
-    elif np.dot(mean_velocity, [0, 1]) < -tol:
-        print('Detected north-to-south flow')
-        boundary_names[3] = 'inflow'
-        boundary_names[2] = 'outflow'
-
     # Compute data on cells by averaging
     data = cellify(simra.data, simra.elems)
 
     # Compute owner and neighbour IDs for each face
     faces = defaultdict(Face)
     for elemidx, elem in enumerate(tqdm(simra.elems, 'Mapping faces')):
-        for faceidx, boundaryname in zip(FACES, boundary_names):
+        for faceidx, boundaryname in zip(FACES, BOUNDARIES):
             face_pts = elem[faceidx]
             key = tuple(sorted(face_pts))
             face = faces[key]
@@ -212,13 +197,22 @@ def convert_grid(simra, outdir):
                 face.neighbour = elemidx
                 face.boundary = None
 
-    # Sort faces by owner, neighbour
-    faces = list(faces.values())
-    bnd_faces, found = [], set()
-    for boundaryname in boundary_names:
-        if boundaryname in found:
+    # Calculate whether wall faces are inflow or outflow
+    for face in faces.values():
+        if face.boundary != 'wall':
             continue
-        found.add(boundaryname)
+        norm = face.normal(simra.coords)
+        velocity = data[face.owner, :3]
+        characteristic = np.dot(norm, velocity)
+        if characteristic < 0.0:
+            face.boundary = 'inflow'
+        else:
+            face.boundary = 'outflow'
+
+    # Sort faces by boundary, owner, neighbour
+    faces = list(faces.values())
+    bnd_faces = []
+    for boundaryname in ['inflow', 'outflow', 'ground', 'ceiling']:
         temp = [face for face in faces if face.boundary == boundaryname]
         bnd_faces.extend(sorted(temp, key=attrgetter('owner')))
     int_faces = [face for face in faces if face.neighbour is not None]
@@ -236,7 +230,7 @@ def convert_grid(simra, outdir):
     foam_faces(os.path.join(outdir, 'faces'), faces)
     foam_labels(os.path.join(outdir, 'owner'), faces, 'owner', note=note)
     foam_labels(os.path.join(outdir, 'neighbour'), faces, 'neighbour', note=note)
-    foam_boundaries(os.path.join(outdir, 'boundary'), len(int_faces), bnd_faces, boundary_names)
+    foam_boundaries(os.path.join(outdir, 'boundary'), len(int_faces), bnd_faces, ['inflow', 'outflow', 'ground', 'ceiling'])
 
     timedir = os.path.join(outdir, str(simra.time))
     if not os.path.exists(timedir):
