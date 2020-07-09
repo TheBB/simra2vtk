@@ -100,10 +100,10 @@ class Simra:
                         uref = float(line.split('=')[-1][:-2])
                     elif line.startswith(' LENREF'):
                         href = float(line.split('=')[-1][:-2])
-        self['u'] = self['u'] * uref
-        self['tk'] = self['tk'] * uref**2
-        self['ps'] = self['ps'] * uref**2
-        self['td'] = self['td'] * uref**3 / href
+            self['u'] = self['u'] * uref
+            self['tk'] = self['tk'] * uref**2
+            self['ps'] = self['ps'] * uref**2
+            self['td'] = self['td'] * uref**3 / href
 
 
     def __iter__(self):
