@@ -52,6 +52,79 @@ DIMENSIONS = {
     'pts': [0, 0, 0, 1, 0, 0, 0],
 }
 
+EXTRA_BOUNDARIES = {
+    'u': """  outflow
+  {
+    type            inletOutlet;
+    inletValue      uniform (0 0 0);
+    value           uniform (0 0 0);
+  }
+  ceiling
+  {
+    type            slip;
+    value           uniform (0 0 0);
+  }
+  ground
+  {
+    type            fixedValue;
+    value           uniform (0 0 0);
+  }
+""",
+
+    'ps': """  ceiling
+  {
+    type            slip;
+    value           uniform 0.0;
+  }
+  ground
+  {
+    type            zeroGradient;
+    value           uniform 0 ;
+  }
+  inflow
+  {
+    type            zeroGradient;
+    value           uniform 0 ;
+  }
+""",
+
+    'tk': """  outflow
+  {
+    type            inletOutlet;
+    inletValue      uniform  0.24;
+    value           uniform  0.24;
+  }
+  ceiling
+  {
+    type            slip;
+    value           uniform 0.24;
+  }
+  ground
+  {
+    type            kqRWallFunction;
+    value           uniform 0.1;
+  }
+""",
+
+    'td1': """  outflow
+  {
+    type            inletOutlet;
+    inletValue      uniform  2;
+    value           uniform  2;
+  }
+  ceiling
+  {
+    type            slip;
+    value           uniform 2;
+  }
+  ground
+  {
+    type            epsilonWallFunction; //  kqRWallFunction;
+    value           uniform 0.1;
+  }
+""",
+}
+
 
 def foam_header(cls, obj, note='None'):
     return """FoamFile
@@ -155,9 +228,9 @@ def foam_internalfield(filename, fieldname, data, boundaries=(), faces=()):
         for boundary in boundaries:
             f.write('  ' + boundary + '\n  {\n    type fixedValue;\n')
             if vectorp:
-                f.write('    value nonuniform List<vector>;\n')
+                f.write('    value nonuniform List<vector>\n')
             else:
-                f.write('    value nonuniform List<scalar>;\n')
+                f.write('    value nonuniform List<scalar>\n')
             bnd_data = np.array([data[face.owner] for face in faces if face.boundary == boundary])
             f.write('    ' + str(len(bnd_data)) + '\n    (\n')
             for entry in bnd_data:
@@ -165,8 +238,9 @@ def foam_internalfield(filename, fieldname, data, boundaries=(), faces=()):
                     f.write('      (' + ' '.join(str(e) for e in entry) + ')\n')
                 else:
                     f.write('      ' + str(entry[0]) + '\n')
-            f.write('    )\n')
+            f.write('    ),\n')
             f.write('  }\n')
+        f.write(EXTRA_BOUNDARIES.get(fieldname, ''))
         f.write('}\n')
 
 
