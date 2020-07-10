@@ -47,7 +47,7 @@ DIMENSIONS = {
     'ps': [0, 2, -2, 0, 0, 0, 0],
     'rho': [1, -3, 0, 0, 0, 0, 0],
     'tk': [0, 2, -2, 0, 0, 0, 0],
-    'td': [0, 2, -3, 0, 0, 0, 0],
+    'td1': [0, 2, -3, 0, 0, 0, 0],
     'pt': [0, 0, 0, 1, 0, 0, 0],
     'pts': [0, 0, 0, 1, 0, 0, 0],
 }
@@ -198,7 +198,10 @@ def foam_boundaries(filename, nint, faces, boundary_names):
             faces = faces[nfaces:]
             f.write('{}'.format(boundaryname))
             f.write('{\n')
-            f.write('    type patch;\n')
+            if boundaryname == 'ground':
+                f.write('    type wall;\n')
+            else:
+                f.write('    type patch;\n')
             f.write('    nFaces {};\n'.format(nfaces))
             f.write('    startFace {};\n'.format(nint))
             f.write('}\n')
@@ -247,7 +250,7 @@ def foam_internalfield(rootdir, fieldname, data, boundaries=(), faces=()):
                     f.write('      (' + ' '.join(str(e) for e in entry) + ')\n')
                 else:
                     f.write('      ' + str(entry[0]) + '\n')
-            f.write('    ),\n')
+            f.write('    );\n')
             f.write('  }\n')
         f.write(EXTRA_BOUNDARIES.get(fieldname, ''))
         f.write('}\n')
